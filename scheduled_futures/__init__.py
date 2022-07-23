@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 
 log = logging.getLogger(__name__)
@@ -237,8 +237,8 @@ class ScheduledFuture(Future):
 			run_lag = (started - self.next_run_time())
 			if run_lag > self._pool.late_run_limit:
 				log.warning('Late to run scheduled future.',
-					extra=dict(run_lag=run_lag, late_run_limit=self._pool.late_run_limit,
-						future_name=self._name, future_id=self._id))
+					extra=dict(metadata=dict(run_lag=run_lag, late_run_limit=self._pool.late_run_limit,
+						future_name=self._name, future_id=self._id)))
 			result = self._context.run(func, *self._args, **self._kwargs)
 		except CancelledError:
 			with self._condition:
@@ -249,7 +249,7 @@ class ScheduledFuture(Future):
 			exc = e
 			if self.is_periodic():
 				log.exception('Periodic future raised exception.',
-					dict(future_name=self._name, future_id=self._id))
+					extra=dict(metadata=dict(future_name=self._name, future_id=self._id)))
 		
 		with self._condition:
 			self._executions += 1
@@ -257,8 +257,8 @@ class ScheduledFuture(Future):
 			self._runtime += runtime
 			if self.is_periodic() and runtime > self.period():
 				log.warning('Periodic scheduled future runtime exceeded period.',
-					extra=dict(runtime=runtime, period=self.period(), 
-						future_name=self._name, future_id=self._id))
+					extra=dict(metadata=dict(runtime=runtime, period=self.period(), 
+						future_name=self._name, future_id=self._id)))
 		
 		if self.pending_cancellation():
 			process = False
