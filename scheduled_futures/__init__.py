@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-__version__ = '1.0.3'
+__version__ = '1.1.0'
 
 
 log = logging.getLogger(__name__)
@@ -161,6 +161,12 @@ class ScheduledFuture(Future):
 		this future. If 0, the future is a one-off."""
 		with self._condition:
 			return self._period
+
+	def set_period(self, val: float) -> None:
+		"""Set the period, which will change the delay until
+		the next execution the next time the future runs and is scheduled again."""
+		with self._condition:
+			self._period = val
 
 	def is_periodic(self) -> bool:
 		"""Return True if this is a periodic scheduled future; False otherwise."""
