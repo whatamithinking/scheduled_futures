@@ -11,7 +11,7 @@ import threading
 import time
 import heapq
 from queue import Empty
-from concurrent.futures._base import PENDING, CANCELLED, CANCELLED_AND_NOTIFIED
+from concurrent.futures._base import PENDING, CANCELLED, CANCELLED_AND_NOTIFIED, Executor
 from concurrent.futures import Future, wait, CancelledError
 from concurrent.futures.thread import BrokenThreadPool, ThreadPoolExecutor, \
 		_global_shutdown_lock, _shutdown
@@ -398,11 +398,11 @@ class ScheduledThreadPoolExecutor(ThreadPoolExecutor):
 				it was actually run, above which a warning will be logged,
 				indicating you may need more workers to do the work on time.
 				Defaults to 1 second.
-            max_workers: The maximum number of threads that can be used to
-                execute the given calls.
-            thread_name_prefix: An optional name prefix to give our threads.
-            initializer: A callable used to initialize worker threads.
-            initargs: A tuple of arguments to pass to the initializer.
+			max_workers: The maximum number of threads that can be used to
+				execute the given calls.
+			thread_name_prefix: An optional name prefix to give our threads.
+			initializer: A callable used to initialize worker threads.
+			initargs: A tuple of arguments to pass to the initializer.
 		"""
 		super().__init__(*args, **kwargs)
 		self._work_queue = _ScheduledFutureQueue()
@@ -496,3 +496,38 @@ class ScheduledThreadPoolExecutor(ThreadPoolExecutor):
 	def submit(self, fn: Callable, /, *args: Any, **kwargs: Any) -> ScheduledFuture:
 		"""Submit a function to run immediately, just like any executor."""
 		return self.schedule(fn, args, kwargs)
+
+	def _initializer_failed(self):
+		with self._shutdown_lock:
+			self._broken = ('A thread initializer failed, the thread pool '
+							'is not usable anymore')
+			# Drain work queue and mark pending futures failed
+			while True:
+				try:
+					future = self._work_queue.get_nowait()
+				except Empty:
+					break
+				if future is not None:
+					future.set_exception(BrokenThreadPool(self._broken))
+
+	def shutdown(self, wait=True, *, cancel_futures=False):
+		with self._shutdown_lock:
+			self._shutdown = True
+			if cancel_futures:
+				# Drain all work items from the queue, and then cancel their
+				# associated futures.
+				while True:
+					try:
+						future = self._work_queue.get_nowait()
+					except Empty:
+						break
+					if future is not None:
+						future.cancel()
+
+			# Send a wake-up to prevent threads calling
+			# _work_queue.get(block=True) from permanently blocking.
+			self._work_queue.put(None)
+		if wait:
+			for t in self._threads:
+				t.join()
+	shutdown.__doc__ = Executor.shutdown.__doc__
