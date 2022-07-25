@@ -14,7 +14,7 @@ from queue import Empty
 from concurrent.futures._base import PENDING, CANCELLED, CANCELLED_AND_NOTIFIED, Executor
 from concurrent.futures import Future, wait, CancelledError
 from concurrent.futures.thread import BrokenThreadPool, ThreadPoolExecutor, \
-		_global_shutdown_lock, _shutdown
+		_global_shutdown_lock, _shutdown, _threads_queues, _worker
 import uuid
 import weakref
 
@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 
 
 log = logging.getLogger(__name__)
@@ -389,7 +389,8 @@ class _ScheduledFutureQueue:
 
 class ScheduledThreadPoolExecutor(ThreadPoolExecutor):
 
-	def __init__(self, late_run_limit: float = 1, *args, **kwargs):
+	def __init__(self, late_run_limit: float = 1, 
+		daemon: bool = False, *args, **kwargs):
 		"""Init scheduled thread pool executor.
 		
 		Args:
@@ -398,6 +399,12 @@ class ScheduledThreadPoolExecutor(ThreadPoolExecutor):
 				it was actually run, above which a warning will be logged,
 				indicating you may need more workers to do the work on time.
 				Defaults to 1 second.
+			daemon: Optional. True if you want to use daemon threads, in which
+				case the executor will not wait for them to complete. The standard 
+				implementation does not allow this because it can sometimes
+				create undefined states for the interpreter, but there are some
+				use-cases where it is valid/useful. Defaults to False, matching
+				with the standard library.
 			max_workers: The maximum number of threads that can be used to
 				execute the given calls.
 			thread_name_prefix: An optional name prefix to give our threads.
@@ -407,6 +414,34 @@ class ScheduledThreadPoolExecutor(ThreadPoolExecutor):
 		super().__init__(*args, **kwargs)
 		self._work_queue = _ScheduledFutureQueue()
 		self.late_run_limit = late_run_limit
+		self.daemon = daemon
+
+	def _adjust_thread_count(self):
+		# if idle threads are available, don't spin new threads
+		if self._idle_semaphore.acquire(timeout=0):
+			return
+
+		# When the executor gets lost, the weakref callback will wake up
+		# the worker threads.
+		def weakref_cb(_, q=self._work_queue):
+			q.put(None)
+
+		num_threads = len(self._threads)
+		if num_threads < self._max_workers:
+			thread_name = '%s_%d' % (self._thread_name_prefix or self,
+									 num_threads)
+			t = threading.Thread(name=thread_name, target=_worker,
+								 args=(weakref.ref(self, weakref_cb),
+									   self._work_queue,
+									   self._initializer,
+									   self._initargs))
+			t.daemon = self.daemon
+			t.start()
+			self._threads.add(t)
+			# do not put the thread in the collection so we can skip
+			# waiting for it on interpreter shutdown
+			if not t.daemon:
+				_threads_queues[t] = self._work_queue
 
 	def _schedule(self, future):
 		with self._shutdown_lock, _global_shutdown_lock:
