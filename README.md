@@ -1,7 +1,9 @@
 # Scheduled Futures
+
 concurrent.futures extension with a ScheduledThreadPoolExecutor to handle delayed and periodic futures with rescheduling
 
 ## Preamble
+
 [concurrent.futures](https://docs.python.org/3/library/concurrent.futures.html) is pretty awesome, but it does not handle periodic work which comes up a fair amount when creating applications.
 
 [apscheduler](https://github.com/agronholm/apscheduler) is great, but trying to wait for jobs to complete involves a racy mess of callbacks.
@@ -13,43 +15,51 @@ This package was created to solve this problem. Please see [Features](#features)
 Documentation is just what there is in this README and the code itself.
 
 ## Table of Contents
+
 - [Scheduled Futures](#scheduled-futures)
-	- [Preamble](#preamble)
-	- [Table of Contents](#table-of-contents)
-	- [Inspiration](#inspiration)
-	- [Features](#features)
-	- [Technologies](#technologies)
-	- [Install](#install)
-	- [Development](#development)
-	- [Example](#example)
-		- [Code](#code)
-		- [Output](#output)
+  - [Preamble](#preamble)
+  - [Table of Contents](#table-of-contents)
+  - [Inspiration](#inspiration)
+  - [Features](#features)
+  - [Technologies](#technologies)
+  - [Install](#install)
+  - [Development](#development)
+  - [Example](#example)
+    - [Code](#code)
+    - [Output](#output)
 
 ## Inspiration
+
 This package was inspired by [this feature request](https://github.com/python/cpython/issues/62156) and some of the code there.
 
 ## Features
+
 - Schedule futures at a fixed delay using a thread pool executor
 - Rescheduling of `ScheduledFuture` instances after they have started
 - `ScheduledThreadPoolExecutor` is a subclass of `ThreadPoolExecutor`, so it can be used anywhere `ThreadPoolExecutor` can, such as for the asyncio default executor
 - Logged warnings when a `ScheduledFuture's` runtime exceeded its period, indicating it may be scheduled to run too quickly
 - Logged warnings when a `ScheduledFuture` is run later scheduled, indicating you may need more workers to keep up
 - Statistics on the number of executions / exceptions / total runtime / average runtime for each `ScheduledFuture`
+- Supports daemon usage, so you can handle things like system calls which cannot be aborted without the process hanging until they complete.
 
 ## Technologies
+
 - Python >= 3.5
 
 ## Install
+
 ```python
 pip install scheduled_futures
 ```
 
 ## Development
+
 Pull requests and new feature requests are welcome.
 
 ## Example
 
 ### Code
+
 ```python
 import time
 from concurrent.futures import wait, CancelledError
@@ -110,7 +120,7 @@ def slow_work2():
 
 
 with ScheduledThreadPoolExecutor(late_run_limit=0.1, max_workers=1) as stpool:
-	
+
 	# show log warning before some executions because there are not enough workers
 	# to keep up with the execution schedule
 	print('\nNot enough workers example')
@@ -129,10 +139,10 @@ def cancelled_work():
 	if i >= 3:
 		raise CancelledError('Stop working, now!')
 	print(time.time(), 'ran without cancellation')
-	
+
 
 with ScheduledThreadPoolExecutor() as stpool:
-	
+
 	# cancel a periodic from inside a periodic
 	print('\nCancel from inside callable example')
 	future = stpool.schedule(cancelled_work, period=0.25)
@@ -143,6 +153,7 @@ with ScheduledThreadPoolExecutor() as stpool:
 ```
 
 ### Output
+
 ```text
 1654566752.6947718 work!
 

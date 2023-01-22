@@ -1,3 +1,40 @@
 [build-system]
-requires = ["setuptools>=42"]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.hatch.version]
+path = "jma_wireless/scheduled_futures/__init__.py"
+
+[project]
+authors = [
+  {author = "Connor Sherwood Maynes", email = "connormaynes@gmail.com"},
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+dependencies = []
+description = "concurrent.futures extension with a ScheduledThreadPoolExecutor to handle delayed and periodic futures with rescheduling"
+dynamic = ["version", "readme"]
+keywords = [
+  "concurrent.futures",
+  "apscheduler",
+  "asyncio",
+  "periodic",
+]
+maintainers = []
+name = "jma-wireless-scheduled-futures"
+requires-python = ">=3.5"
+
+[tool.setuptools.dynamic]
+readme = {file = "README.md"}
+version = {attr = "jma_wireless.scheduled_futures.__version__"}
+
+[project.optional-dependencies]
+dev = [
+  "black",
+]
+test = []
+
+[project.scripts]
+[project.gui-scripts]
